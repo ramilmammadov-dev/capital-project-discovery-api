@@ -1,0 +1,10 @@
+services:
+  api:
+    build: .
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data          # SQLite DB, document/parse/LLM caches, job outputs
+      - ./config:/app/config:ro   # pricing, models, thresholds
+    restart: unless-stopped

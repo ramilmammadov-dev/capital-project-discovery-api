@@ -1,0 +1,103 @@
+# capex-discovery configuration.
+# Every value has a built-in default (src/capex/config.py); this file documents the knobs and overrides them.
+# Secrets are NEVER stored here — the config names the environment variable that holds each key.
+
+providers:
+  anthropic_api_key_env: ANTHROPIC_API_KEY
+  typesafe_api_key_env: TYPESAFE_API_KEY          # Jev (TypeSafe) screening
+  openai_api_key_env: OPENAI_API_KEY               # any OpenAI-compatible endpoint
+  openai_base_url: https://api.openai.com/v1       # GLM: https://open.bigmodel.cn/api/paas/v4
+  openai_response_format: json_schema              # or json_object for endpoints without strict schemas
+  brave_api_key_env: BRAVE_API_KEY
+  serper_api_key_env: SERPER_API_KEY
+
+# Model selection per task. provider: anthropic | openai_compatible
+models:
+  planner:    { provider: anthropic, model: claude-haiku-5-5, max_tokens: 2500 }   # query planning
+  profiler:   { provider: anthropic, model: claude-haiku-5-5, max_tokens: 1500 }   # document metadata (batched)
+  extraction: { provider: anthropic, model: claude-haiku-5-5, max_tokens: 16000 }  # default low-cost extractor
+  escalation: { provider: anthropic, model: claude-sonnet-5-5, max_tokens: 16000 } # difficult chunks only
+
+# USD per 1M tokens (+ optional flat per-request fee). Update when provider price lists change.
+# A model without a price entry is still measured, and its cost is flagged as ESTIMATED in every report.
+pricing:
+  claude-haiku-5-5:  { input: 0.10, output: 0.50, cache_write: 0.125, cache_read: 0.01,
+                       long_context_threshold: 100000, long_input: 0.50, long_output: 2.50 }
+  claude-sonnet-5-5: { input: 2.00, output: 10.00, cache_write: 2.50, cache_read: 0.10 }
+  claude-opus-5-5:   { input: 4.00, output: 20.00, cache_write: 5.00, cache_read: 0.20 }
+  jev-1.13.0:        { input: 0.042, output: 0.0 }
+  jev-latest:        { input: 0.042, output: 0.0 }
+
+search:
+  providers: [anthropic, brave, serper, duckduckgo]   # every configured provider contributes results
+  duckduckgo_only_as_fallback: true                    # keyless search only when no paid provider is set
+  max_queries: 10
+  results_per_query: 10
+  anthropic_model: claude-haiku-5-5
+  anthropic_tool_version: web_search_20250305
+  price_per_search_usd: { anthropic: 0.01, brave: 0.005, serper: 0.001, duckduckgo: 0.0 }
+  cache_ttl_hours: 168
+
+discovery:
+  max_candidates: 80          # inventory size kept in the outputs
+  max_probe: 14               # candidates downloaded & profiled before selection
+  crawl_max_pages: 40
+  crawl_max_depth: 2
+  max_document_mb: 200
+  probe_sample_pages: 14
+  select_top: 3
+  archive_fallback: true      # Internet Archive copy when an official host refuses automated downloads
+  overlap_penalty: 0.9        # selection maximizes combined unique coverage
+  weights: { itemization: 0.30, volume: 0.15, authority: 0.12, recency: 0.15,
+             detail: 0.12, doc_type: 0.08, relevance: 0.05, readability: 0.03 }
+
+parsing:
+  max_pages: 1500
+  workers: 6
+  ocr_enabled: true           # local tesseract only (no paid OCR)
+  ocr_max_pages: 60
+
+chunking:
+  target_tokens: 1800
+  max_tokens: 3200
+  min_tokens: 200
+  max_rows_per_chunk: 28      # keeps dense CIP tables small enough for exhaustive extraction
+  overlap_lines: 3
+
+screening:
+  provider: jev               # jev | heuristic | none
+  fallback: heuristic         # used when Jev is not configured or errors (reported in metrics)
+  jev_model: jev-1.13.0       # pinned so tuned thresholds do not drift
+  concurrency: 8
+  max_state_chars: 24000
+  extract_threshold: 0.50     # p(explicit)+p(possible) >= -> extract
+  plausible_threshold: 0.15   # uncertain-but-plausible chunks are still extracted (high recall)
+  context_threshold: 0.35     # p(extract_with_context) >= -> add neighbouring chunks as context
+  recall_guard: true          # deterministic: never skip chunks with strong table/ID signals
+
+extraction:
+  concurrency: 8
+  max_split_depth: 2
+  escalate_unverified_ratio: 0.34
+  escalate_row_recall_ratio: 0.6
+  max_escalations_per_job: 8
+  review_confidence_below: 0.6
+  excerpt_match_threshold: 85
+  name_match_threshold: 80
+
+dedup:
+  id_name_min: 55
+  name_auto_merge: 93
+  name_corroborated_merge: 85
+  name_possible: 72
+  location_min: 70
+  budget_tolerance: 0.25
+
+limits:
+  job_timeout_s: 5400
+  http_timeout_s: 60
+  llm_timeout_s: 240
+  max_job_cost_usd: 5.0
+  max_concurrent_jobs: 2
+  job_max_attempts: 2
+  job_reuse_hours: 72

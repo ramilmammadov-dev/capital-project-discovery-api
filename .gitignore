@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# Secrets — never commit real keys
+.env
+.env.*
+!.env.example
+
+# Runtime data (caches, job outputs, SQLite) — pilot deliverables live in pilot/
+data/
+*.db
+*.sqlite
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
